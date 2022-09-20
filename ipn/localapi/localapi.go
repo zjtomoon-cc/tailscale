@@ -132,6 +132,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveCheckPrefs(w, r)
 	case "/localapi/v0/check-ip-forwarding":
 		h.serveCheckIPForwarding(w, r)
+	case "/localapi/v0/check-reverse-path-filtering":
+		h.serveCheckRPFilter(w, r)
 	case "/localapi/v0/bugreport":
 		h.serveBugReport(w, r)
 	case "/localapi/v0/file-targets":
@@ -340,6 +342,23 @@ func (h *Handler) serveCheckIPForwarding(w http.ResponseWriter, r *http.Request)
 	}
 	var warning string
 	if err := h.b.CheckIPForwarding(); err != nil {
+		warning = err.Error()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(struct {
+		Warning string
+	}{
+		Warning: warning,
+	})
+}
+
+func (h *Handler) serveCheckRPFilter(w http.ResponseWriter, r *http.Request) {
+	if !h.PermitRead {
+		http.Error(w, "reverse path filtering check access denied", http.StatusForbidden)
+		return
+	}
+	var warning string
+	if err := h.b.CheckRPFilter(); err != nil {
 		warning = err.Error()
 	}
 	w.Header().Set("Content-Type", "application/json")

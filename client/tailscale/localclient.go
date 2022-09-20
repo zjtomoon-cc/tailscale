@@ -427,6 +427,25 @@ func (lc *LocalClient) CheckIPForwarding(ctx context.Context) error {
 	return nil
 }
 
+// CheckReversePathFiltering asks the local Tailscale daemon whether it looks
+// like the machine has a bad configuration for reverse path filtering.
+func (lc *LocalClient) CheckReversePathFiltering(ctx context.Context) error {
+	body, err := lc.get200(ctx, "/localapi/v0/check-reverse-path-filtering")
+	if err != nil {
+		return err
+	}
+	var jres struct {
+		Warning string
+	}
+	if err := json.Unmarshal(body, &jres); err != nil {
+		return fmt.Errorf("invalid JSON from check-reverse-path-filtering: %w", err)
+	}
+	if jres.Warning != "" {
+		return errors.New(jres.Warning)
+	}
+	return nil
+}
+
 // CheckPrefs validates the provided preferences, without making any changes.
 //
 // The CLI uses this before a Start call to fail fast if the preferences won't

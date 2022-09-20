@@ -3450,6 +3450,16 @@ func (b *LocalBackend) CheckIPForwarding() error {
 	return warn
 }
 
+func (b *LocalBackend) CheckRPFilter() error {
+	b.logf("CheckRPFilter called")
+	// TODO: let the caller pass in the ranges, as with CheckIPForwarding above.
+	warn, err := netutil.CheckReversePathFiltering(tsaddr.ExitRoutes(), nil)
+	if err != nil {
+		return err
+	}
+	return warn
+}
+
 // DERPMap returns the current DERPMap in use, or nil if not connected.
 func (b *LocalBackend) DERPMap() *tailcfg.DERPMap {
 	b.mu.Lock()

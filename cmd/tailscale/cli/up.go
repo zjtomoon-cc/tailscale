@@ -469,6 +469,9 @@ func runUp(ctx context.Context, args []string) (retErr error) {
 		fatalf("%s", err)
 	}
 
+	if err := localClient.CheckReversePathFiltering(context.Background()); err != nil {
+		warnf("%v", err)
+	}
 	if len(prefs.AdvertiseRoutes) > 0 {
 		if err := localClient.CheckIPForwarding(context.Background()); err != nil {
 			warnf("%v", err)
