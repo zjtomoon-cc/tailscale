@@ -93,7 +93,7 @@ type SNAT44 struct {
 	// packets in their "LAN form", i.e. before translation in the
 	// outbound direction and after translation in the inbound
 	// direction.
-	Firewall PacketHandler
+	Firewall *Firewall
 	// TimeNow is a function that returns the current time. If
 	// nil, time.Now is used.
 	TimeNow func() time.Time
