@@ -73,6 +73,7 @@ import (
 	"tailscale.com/util/set"
 	"tailscale.com/util/systemd"
 	"tailscale.com/util/uniq"
+	"tailscale.com/util/vizerror"
 	"tailscale.com/version"
 	"tailscale.com/version/distro"
 	"tailscale.com/wgengine"
@@ -815,9 +816,8 @@ func (b *LocalBackend) setClientStatus(st controlclient.Status) {
 			return
 		}
 		b.logf("Received error: %v", st.Err)
-		var uerr controlclient.UserVisibleError
-		if errors.As(st.Err, &uerr) {
-			s := uerr.UserVisibleError()
+		if vizerr, ok := vizerror.As(st.Err); ok {
+			s := vizerr.Error()
 			b.send(ipn.Notify{ErrMessage: &s})
 		}
 		return
