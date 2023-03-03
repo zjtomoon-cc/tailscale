@@ -273,6 +273,21 @@ type Node struct {
 	// the client, this is calculated client-side based on a timestamp sent
 	// from control, to avoid clock skew issues.
 	Expired bool `json:",omitempty"`
+
+	// SelfNodeV4MasqAddrForThisPeer is the IPv4 that this peer knows the current node as.
+	// It may be empty if the peer knows the current node by its native
+	// IPv4 address.
+	// This field is only populated in a MapResponse for peers and not
+	// for the current node.
+	//
+	// If set, it should be used to masquerade traffic originating from the
+	// current node to this peer. The masquerade address is only relevant
+	// for this peer and not for other peers.
+	//
+	// This only applies to traffic originating from the current node to the
+	// peer or any of its subnets. Traffic originating from subnet routes will
+	// not be masqueraded (e.g. in case of --snat-subnet-routes).
+	SelfNodeV4MasqAddrForThisPeer netip.Addr `json:",omitempty"`
 }
 
 // DisplayName returns the user-facing name for a node which should
