@@ -65,6 +65,7 @@ import (
 	"tailscale.com/types/preftype"
 	"tailscale.com/types/ptr"
 	"tailscale.com/types/views"
+	"tailscale.com/util/cache"
 	"tailscale.com/util/deephash"
 	"tailscale.com/util/dnsname"
 	"tailscale.com/util/mak"
@@ -211,6 +212,7 @@ type LocalBackend struct {
 	directFileRoot          string
 	directFileDoFinalRename bool // false on macOS, true on several NAS platforms
 	componentLogUntil       map[string]componentLogState
+	controlKeyCache         cache.Cache[string, *tailcfg.OverTLSPublicKeyResponse]
 
 	// ServeConfig fields. (also guarded by mu)
 	lastServeConfJSON mem.RO              // last JSON that was parsed into serveConfig
@@ -286,6 +288,16 @@ func NewLocalBackend(logf logger.Logf, logid string, store ipn.StateStore, diale
 		em:             newExpiryManager(logf),
 		gotPortPollRes: make(chan struct{}),
 		loginFlags:     loginFlags,
+
+		// TODO(andrew): can we cache this on-disk? If so, we'll need
+		// to Forget() the value if the tailcfg.CapabilityVersion
+		// changes between executions, and ensure we're handling
+		// profile switches/shutdowns.
+		controlKeyCache: &cache.Memory[string, *tailcfg.OverTLSPublicKeyResponse]{
+			// If we can't reach the control server, allow returning
+			// an expired value from the cache.
+			ServeExpired: true,
+		},
 	}
 
 	// Default filter blocks everything and logs nothing, until Start() is called.
@@ -1381,6 +1393,11 @@ func (b *LocalBackend) Start(opts ipn.Options) error {
 		Status:               b.setClientStatus,
 		C2NHandler:           http.HandlerFunc(b.handleC2N),
 		DialPlan:             &b.dialPlan, // pointer because it can't be copied
+
+		// Cache control key in-memory; this helps when moving to a
+		// network that does TLS MiTM, and allows us to continue using
+		// the previously-cached control key.
+		ControlKeyCache: b.controlKeyCache,
 
 		// Don't warn about broken Linux IP forwarding when
 		// netstack is being used.
