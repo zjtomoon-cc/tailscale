@@ -9,6 +9,7 @@ package tsnet
 import (
 	"context"
 	crand "crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -645,7 +646,7 @@ func networkForFamily(netBase string, is6 bool) string {
 //   - ("tcp", "", port)
 //
 // The netBase is "tcp" or "udp" (without any '4' or '6' suffix).
-func (s *Server) listenerForDstAddr(netBase string, dst netip.AddrPort) (_ *listener, ok bool) {
+func (s *Server) listenerForDstAddr(netBase string, dst netip.AddrPort, funnel bool) (_ *listener, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, a := range [2]netip.Addr{0: dst.Addr()} {
@@ -653,7 +654,7 @@ func (s *Server) listenerForDstAddr(netBase string, dst netip.AddrPort) (_ *list
 			networkForFamily(netBase, dst.Addr().Is6()),
 			netBase,
 		} {
-			if ln, ok := s.listeners[listenKey{net, a, dst.Port()}]; ok {
+			if ln, ok := s.listeners[listenKey{net, a, dst.Port(), funnel}]; ok {
 				return ln, true
 			}
 		}
@@ -675,7 +676,7 @@ func (s *Server) getTCPHandlerForFunnelFlow(src netip.AddrPort, dstPort uint16) 
 		}
 		dst = netip.AddrPortFrom(ipv6, dstPort)
 	}
-	ln, ok := s.listenerForDstAddr("tcp", dst)
+	ln, ok := s.listenerForDstAddr("tcp", dst, true)
 	if !ok {
 		return nil
 	}
@@ -683,7 +684,7 @@ func (s *Server) getTCPHandlerForFunnelFlow(src netip.AddrPort, dstPort uint16) 
 }
 
 func (s *Server) getTCPHandlerForFlow(src, dst netip.AddrPort) (handler func(net.Conn), intercept bool) {
-	ln, ok := s.listenerForDstAddr("tcp", dst)
+	ln, ok := s.listenerForDstAddr("tcp", dst, false)
 	if !ok {
 		return nil, true // don't handle, don't forward to localhost
 	}
@@ -691,7 +692,7 @@ func (s *Server) getTCPHandlerForFlow(src, dst netip.AddrPort) (handler func(net
 }
 
 func (s *Server) getUDPHandlerForFlow(src, dst netip.AddrPort) (handler func(nettype.ConnPacketConn), intercept bool) {
-	ln, ok := s.listenerForDstAddr("udp", dst)
+	ln, ok := s.listenerForDstAddr("udp", dst, false)
 	if !ok {
 		return nil, true // don't handle, don't forward to localhost
 	}
@@ -760,6 +761,34 @@ func (s *Server) APIClient() (*tailscale.Client, error) {
 // Listen announces only on the Tailscale network.
 // It will start the server if it has not been started yet.
 func (s *Server) Listen(network, addr string) (net.Listener, error) {
+	return s.listen(network, addr, false)
+}
+
+func (s *Server) ListenFunnel(network string, addr string) (net.Listener, error) {
+	if network != "tcp" {
+		return nil, errors.New("only tcp is supported for ListenFunnel")
+	}
+	lc, err := s.LocalClient() // do local client first before listening.
+	if err != nil {
+		return nil, err
+	}
+	st, err := lc.StatusWithoutPeers(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if len(st.CertDomains) == 0 {
+		return nil, errors.New("please enable HTTPS in the Tailscale admin panel")
+	}
+	ln, err := s.listen(network, addr, true)
+	if err != nil {
+		return nil, err
+	}
+	return tls.NewListener(ln, &tls.Config{
+		GetCertificate: lc.GetCertificate,
+	}), nil
+}
+
+func (s *Server) listen(network, addr string, funnel bool) (net.Listener, error) {
 	switch network {
 	case "", "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
 	default:
@@ -794,7 +823,7 @@ func (s *Server) Listen(network, addr string) (net.Listener, error) {
 		return nil, err
 	}
 
-	key := listenKey{network, bindHostOrZero, uint16(port)}
+	key := listenKey{network, bindHostOrZero, uint16(port), funnel}
 	ln := &listener{
 		s:    s,
 		key:  key,
@@ -816,6 +845,7 @@ type listenKey struct {
 	network string
 	host    netip.Addr // or zero value for unspecified
 	port    uint16
+	funnel  bool
 }
 
 type listener struct {
