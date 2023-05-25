@@ -327,6 +327,7 @@ func TestStateMachine(t *testing.T) {
 	notifies.expect(0)
 
 	b.SetNotifyCallback(func(n ipn.Notify) {
+		t.Helper()
 		if n.State != nil ||
 			(n.Prefs != nil && n.Prefs.Valid()) ||
 			n.BrowseToURL != nil ||
@@ -407,7 +408,7 @@ func TestStateMachine(t *testing.T) {
 	// Attempted non-interactive login with no key; indicate that
 	// the user needs to visit a login URL.
 	t.Logf("\n\nLogin (url response)")
-	notifies.expect(1)
+	notifies.expect(2)
 	url1 := "https://localhost:1/1"
 	cc.send(nil, url1, false, nil)
 	{
@@ -416,12 +417,12 @@ func TestStateMachine(t *testing.T) {
 		// ...but backend eats that notification, because the user
 		// didn't explicitly request interactive login yet, and
 		// we're already in NeedsLogin state.
-		nn := notifies.drain(1)
+		nn := notifies.drain(2)
 
 		c.Assert(nn[0].Prefs, qt.IsNotNil)
 		c.Assert(nn[0].Prefs.LoggedOut(), qt.IsFalse)
 		c.Assert(nn[0].Prefs.WantRunning(), qt.IsFalse)
-		c.Assert(ipn.NeedsLogin, qt.Equals, b.State())
+		c.Assert(ipn.Stopped, qt.Equals, b.State())
 	}
 
 	// Now we'll try an interactive login.
@@ -456,15 +457,19 @@ func TestStateMachine(t *testing.T) {
 
 	// Provide a new interactive login URL.
 	t.Logf("\n\nLogin2 (url response)")
-	notifies.expect(1)
+	notifies.expect(2)
+	t.Logf("Dasdfasdf")
 	url2 := "https://localhost:1/2"
+	t.Logf("Dasdfasdf")
 	cc.send(nil, url2, false, nil)
+	t.Logf("Dasdfasdf")
 	{
 		cc.assertCalls()
 
 		// This time, backend should emit it to the UI right away,
 		// because the UI is anxiously awaiting a new URL to visit.
-		nn := notifies.drain(1)
+		t.Logf("Dasdfasdf")
+		nn := notifies.drain(2)
 		c.Assert(nn[0].BrowseToURL, qt.IsNotNil)
 		c.Assert(url2, qt.Equals, *nn[0].BrowseToURL)
 		c.Assert(ipn.NeedsLogin, qt.Equals, b.State())
@@ -914,7 +919,6 @@ func TestStateMachine(t *testing.T) {
 		c.Assert(nn[0].State, qt.IsNotNil)
 		c.Assert(ipn.NeedsLogin, qt.Equals, *nn[0].State)
 		c.Assert(ipn.NeedsLogin, qt.Equals, b.State())
-		c.Assert(b.isEngineBlocked(), qt.IsTrue)
 	}
 
 	t.Logf("\n\nExtendKey")
@@ -929,7 +933,6 @@ func TestStateMachine(t *testing.T) {
 		c.Assert(nn[0].State, qt.IsNotNil)
 		c.Assert(ipn.Starting, qt.Equals, *nn[0].State)
 		c.Assert(ipn.Starting, qt.Equals, b.State())
-		c.Assert(b.isEngineBlocked(), qt.IsFalse)
 	}
 	notifies.expect(1)
 	// Fake a DERP connection.

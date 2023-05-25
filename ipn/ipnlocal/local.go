@@ -206,8 +206,6 @@ type LocalBackend struct {
 	activeLogin      string // last logged LoginName from netMap
 	engineStatus     ipn.EngineStatus
 	endpoints        []tailcfg.Endpoint
-	blocked          bool
-	keyExpired       bool
 	authURL          string // cleared on Notify
 	authURLSticky    string // not cleared on Notify
 	interact         bool
@@ -917,28 +915,10 @@ func (b *LocalBackend) setClientStatus(st controlclient.Status) {
 			})
 		}
 	}
-
-	wasBlocked := b.blocked
-	keyExpiryExtended := false
-	if st.NetMap != nil {
-		wasExpired := b.keyExpired
-		isExpired := !st.NetMap.Expiry.IsZero() && st.NetMap.Expiry.Before(time.Now())
-		if wasExpired && !isExpired {
-			keyExpiryExtended = true
-		}
-		b.keyExpired = isExpired
-	}
 	b.mu.Unlock()
 
-	if keyExpiryExtended && wasBlocked {
-		// Key extended, unblock the engine
-		b.blockEngineUpdates(false)
-	}
-
-	if st.LoginFinished != nil && wasBlocked {
+	if st.LoginFinished != nil {
 		// Auth completed, unblock the engine
-		b.blockEngineUpdates(false)
-		b.authReconfig()
 		b.send(ipn.Notify{LoginFinished: &empty.Message{}})
 	}
 
@@ -983,7 +963,7 @@ func (b *LocalBackend) setClientStatus(st controlclient.Status) {
 		b.authURL = st.URL
 		b.authURLSticky = st.URL
 	}
-	if wasBlocked && st.LoginFinished != nil {
+	if st.LoginFinished != nil {
 		// Interactive login finished successfully (URL visited).
 		// After an interactive login, the user always wants
 		// WantRunning.
@@ -2068,8 +2048,6 @@ func (b *LocalBackend) popBrowserAuthNow() {
 
 	b.logf("popBrowserAuthNow: url=%v", url != "")
 
-	b.blockEngineUpdates(true)
-	b.stopEngineAndWait()
 	b.tellClientToBrowseToURL(url)
 	if b.State() == ipn.Running {
 		b.enterState(ipn.Starting)
@@ -2900,39 +2878,17 @@ func (b *LocalBackend) NetMap() *netmap.NetworkMap {
 	return b.netMap
 }
 
-func (b *LocalBackend) isEngineBlocked() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.blocked
-}
-
-// blockEngineUpdate sets b.blocked to block, while holding b.mu. Its
-// indirect effect is to turn b.authReconfig() into a no-op if block
-// is true.
-func (b *LocalBackend) blockEngineUpdates(block bool) {
-	b.logf("blockEngineUpdates(%v)", block)
-
-	b.mu.Lock()
-	b.blocked = block
-	b.mu.Unlock()
-}
-
 // authReconfig pushes a new configuration into wgengine, if engine
 // updates are not currently blocked, based on the cached netmap and
 // user prefs.
 func (b *LocalBackend) authReconfig() {
 	b.mu.Lock()
-	blocked := b.blocked
 	prefs := b.pm.CurrentPrefs()
 	nm := b.netMap
 	hasPAC := b.prevIfState.HasPAC()
 	disableSubnetsIfPAC := nm != nil && nm.Debug != nil && nm.Debug.DisableSubnetsIfPAC.EqualBool(true)
 	b.mu.Unlock()
 
-	if blocked {
-		b.logf("[v1] authReconfig: blocked, skipping.")
-		return
-	}
 	if nm == nil {
 		b.logf("[v1] authReconfig: netmap not yet valid. Skipping.")
 		return
@@ -3590,7 +3546,6 @@ func (b *LocalBackend) enterStateLockedOnEntry(newState ipn.State) {
 	switch newState {
 	case ipn.NeedsLogin:
 		systemd.Status("Needs login: %s", authURL)
-		b.blockEngineUpdates(true)
 		fallthrough
 	case ipn.Stopped:
 		err := b.e.Reconfig(&wgcfg.Config{}, &router.Config{}, &dns.Config{}, nil)
@@ -3632,12 +3587,10 @@ func (b *LocalBackend) hasNodeKey() bool {
 func (b *LocalBackend) nextState() ipn.State {
 	b.mu.Lock()
 	var (
-		cc         = b.cc
-		netMap     = b.netMap
-		state      = b.state
-		blocked    = b.blocked
-		st         = b.engineStatus
-		keyExpired = b.keyExpired
+		cc     = b.cc
+		netMap = b.netMap
+		state  = b.state
+		st     = b.engineStatus
 
 		wantRunning = false
 		loggedOut   = false
@@ -3649,7 +3602,7 @@ func (b *LocalBackend) nextState() ipn.State {
 	b.mu.Unlock()
 
 	switch {
-	case !wantRunning && !loggedOut && !blocked && b.hasNodeKey():
+	case !wantRunning && !loggedOut && b.hasNodeKey():
 		return ipn.Stopped
 	case netMap == nil:
 		if (cc != nil && cc.AuthCantContinue()) || loggedOut {
@@ -3677,10 +3630,6 @@ func (b *LocalBackend) nextState() ipn.State {
 		}
 	case !wantRunning:
 		return ipn.Stopped
-	case keyExpired:
-		// NetMap must be non-nil for us to get here.
-		// The node key expired, need to relogin.
-		return ipn.NeedsLogin
 	case netMap.MachineStatus != tailcfg.MachineAuthorized:
 		// TODO(crawshaw): handle tailcfg.MachineInvalid
 		return ipn.NeedsMachineAuth
@@ -3781,7 +3730,6 @@ func (b *LocalBackend) ResetForClientDisconnect() {
 	b.resetControlClientLockedAsync()
 	b.setNetMapLocked(nil)
 	b.pm.Reset()
-	b.keyExpired = false
 	b.authURL = ""
 	b.authURLSticky = ""
 	b.activeLogin = ""
