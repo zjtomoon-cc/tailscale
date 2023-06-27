@@ -321,4 +321,3 @@ wahoo
 zebra
 coelacanth
 cherimoya
-salak
