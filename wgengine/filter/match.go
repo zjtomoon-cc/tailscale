@@ -4,11 +4,13 @@
 package filter
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"strings"
 
 	"tailscale.com/net/packet"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/ipproto"
 )
 
@@ -54,7 +56,9 @@ type CapMatch struct {
 
 	// Cap is the capability that's granted if the destination IP addresses
 	// matches Dst.
-	Cap string
+	Cap tailcfg.Capability
+
+	Values []*json.RawMessage
 }
 
 // Match matches packets from any IP address in Srcs to any ip:port in

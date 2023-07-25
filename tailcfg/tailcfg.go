@@ -8,6 +8,7 @@ package tailcfg
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -1182,8 +1183,21 @@ type CapGrant struct {
 	// Caps are the capabilities the source IP matched by
 	// FilterRule.SrcIPs are granted to the destination IP,
 	// matched by Dsts.
-	Caps []string `json:",omitempty"`
+	// Deprecated: use CapMap instead.
+	Caps []Capability `json:",omitempty"`
+
+	// CapMap is a map of capabilities to their values.
+	// The key is the capability name, and the value is a list of
+	// values for that capability.
+	CapMap CapMap `json:",omitempty"`
 }
+
+// Capability is a capability granted to a node by a FilterRule.
+// It's a string, but its meaning is application-defined.
+type Capability string
+
+// CapMap is a map of capabilities to their values.
+type CapMap map[Capability][]*json.RawMessage
 
 // FilterRule represents one rule in a packet filter.
 //

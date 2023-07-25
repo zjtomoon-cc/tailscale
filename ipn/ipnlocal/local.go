@@ -814,13 +814,13 @@ func (b *LocalBackend) WhoIs(ipp netip.AddrPort) (n *tailcfg.Node, u tailcfg.Use
 
 // PeerCaps returns the capabilities that remote src IP has to
 // ths current node.
-func (b *LocalBackend) PeerCaps(src netip.Addr) []string {
+func (b *LocalBackend) PeerCaps(src netip.Addr) tailcfg.CapMap {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.peerCapsLocked(src)
 }
 
-func (b *LocalBackend) peerCapsLocked(src netip.Addr) []string {
+func (b *LocalBackend) peerCapsLocked(src netip.Addr) tailcfg.CapMap {
 	if b.netMap == nil {
 		return nil
 	}
@@ -834,7 +834,7 @@ func (b *LocalBackend) peerCapsLocked(src netip.Addr) []string {
 		}
 		dst := a.Addr()
 		if dst.BitLen() == src.BitLen() { // match on family
-			return filt.AppendCaps(nil, src, dst)
+			return filt.CapsWithValues(src, dst)
 		}
 	}
 	return nil
@@ -4336,12 +4336,8 @@ func (b *LocalBackend) peerIsTaildropTargetLocked(p *tailcfg.Node) bool {
 }
 
 func (b *LocalBackend) peerHasCapLocked(addr netip.Addr, wantCap string) bool {
-	for _, hasCap := range b.peerCapsLocked(addr) {
-		if hasCap == wantCap {
-			return true
-		}
-	}
-	return false
+	_, ok := b.peerCapsLocked(addr)[tailcfg.Capability(wantCap)]
+	return ok
 }
 
 // SetDNS adds a DNS record for the given domain name & TXT record

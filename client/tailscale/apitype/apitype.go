@@ -4,7 +4,9 @@
 // Package apitype contains types for the Tailscale LocalAPI and control plane API.
 package apitype
 
-import "tailscale.com/tailcfg"
+import (
+	"tailscale.com/tailcfg"
+)
 
 // LocalAPIHost is the Host header value used by the LocalAPI.
 const LocalAPIHost = "local-tailscaled.sock"
@@ -15,7 +17,13 @@ type WhoIsResponse struct {
 	UserProfile *tailcfg.UserProfile
 
 	// Caps are extra capabilities that the remote Node has to this node.
-	Caps []string `json:",omitempty"`
+	// Deprecated: use CapMap instead.
+	Caps []tailcfg.Capability
+
+	// CapMap is a map of capabilities to their values.
+	// The key is the capability name, and the value is a list of
+	// values for that capability.
+	CapMap tailcfg.CapMap
 }
 
 // FileTarget is a node to which files can be sent, and the PeerAPI

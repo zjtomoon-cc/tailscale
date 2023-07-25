@@ -15,9 +15,11 @@ import (
 	"tailscale.com/net/flowtrack"
 	"tailscale.com/net/netaddr"
 	"tailscale.com/net/packet"
+	"tailscale.com/tailcfg"
 	"tailscale.com/tstime/rate"
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/logger"
+	"tailscale.com/util/mak"
 )
 
 // Filter is a stateful packet filter.
@@ -324,6 +326,7 @@ func (f *Filter) CheckTCP(srcIP, dstIP netip.Addr, dstPort uint16) Response {
 
 // AppendCaps appends to base the capabilities that srcIP has talking
 // to dstIP.
+// Deprecated: use CapsWithValues instead.
 func (f *Filter) AppendCaps(base []string, srcIP, dstIP netip.Addr) []string {
 	ret := base
 	var mm matches
@@ -339,11 +342,35 @@ func (f *Filter) AppendCaps(base []string, srcIP, dstIP netip.Addr) []string {
 		}
 		for _, cm := range m.Caps {
 			if cm.Cap != "" && cm.Dst.Contains(dstIP) {
-				ret = append(ret, cm.Cap)
+				ret = append(ret, string(cm.Cap))
 			}
 		}
 	}
 	return ret
+}
+
+// CapsWithValues appends to base the capabilities that srcIP has talking
+// to dstIP.
+func (f *Filter) CapsWithValues(srcIP, dstIP netip.Addr) tailcfg.CapMap {
+	var mm matches
+	switch {
+	case srcIP.Is4():
+		mm = f.cap4
+	case srcIP.Is6():
+		mm = f.cap6
+	}
+	var out tailcfg.CapMap
+	for _, m := range mm {
+		if !ipInList(srcIP, m.Srcs) {
+			continue
+		}
+		for _, cm := range m.Caps {
+			if cm.Cap != "" && !cm.Dst.Contains(dstIP) {
+				mak.Set(&out, cm.Cap, append(out[cm.Cap], cm.Values...))
+			}
+		}
+	}
+	return out
 }
 
 // ShieldsUp reports whether this is a "shields up" (block everything

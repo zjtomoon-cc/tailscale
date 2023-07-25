@@ -880,7 +880,7 @@ func TestCaps(t *testing.T) {
 				Dsts: []netip.Prefix{
 					netip.MustParsePrefix("0.0.0.0/0"),
 				},
-				Caps: []string{"is_ipv4"},
+				Caps: []tailcfg.Capability{"is_ipv4"},
 			}},
 		},
 		{
@@ -889,7 +889,7 @@ func TestCaps(t *testing.T) {
 				Dsts: []netip.Prefix{
 					netip.MustParsePrefix("::/0"),
 				},
-				Caps: []string{"is_ipv6"},
+				Caps: []tailcfg.Capability{"is_ipv6"},
 			}},
 		},
 		{
@@ -898,7 +898,7 @@ func TestCaps(t *testing.T) {
 				Dsts: []netip.Prefix{
 					netip.MustParsePrefix("100.200.0.0/16"),
 				},
-				Caps: []string{"some_super_admin"},
+				Caps: []tailcfg.Capability{"some_super_admin"},
 			}},
 		},
 	})

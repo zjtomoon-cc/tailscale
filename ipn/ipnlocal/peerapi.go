@@ -1061,12 +1061,9 @@ func (h *peerAPIHandler) canIngress() bool {
 }
 
 func (h *peerAPIHandler) peerHasCap(wantCap string) bool {
-	for _, hasCap := range h.ps.b.PeerCaps(h.remoteAddr.Addr()) {
-		if hasCap == wantCap {
-			return true
-		}
-	}
-	return false
+	pc := h.ps.b.PeerCaps(h.remoteAddr.Addr())
+	_, ok := pc[tailcfg.Capability(wantCap)]
+	return ok
 }
 
 func (h *peerAPIHandler) handlePeerPut(w http.ResponseWriter, r *http.Request) {

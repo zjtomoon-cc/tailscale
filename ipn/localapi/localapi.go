@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -424,10 +425,12 @@ func (h *Handler) serveWhoIs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no match for IP:port", 404)
 		return
 	}
+	pc := b.PeerCaps(ipp.Addr())
 	res := &apitype.WhoIsResponse{
 		Node:        n,
 		UserProfile: &u,
-		Caps:        b.PeerCaps(ipp.Addr()),
+		Caps:        maps.Keys(pc),
+		CapMap:      pc,
 	}
 	j, err := json.MarshalIndent(res, "", "\t")
 	if err != nil {
