@@ -58,6 +58,15 @@ const (
 	forcePasswordSuffix = "+password"
 )
 
+// New returns a new SSH server.
+func New(lb *ipnlocal.LocalBackend, logf logger.Logf, incubatorPath string) ipnlocal.SSHServer {
+	return &server{
+		lb:            lb,
+		logf:          logf,
+		incubatorPath: incubatorPath,
+	}
+}
+
 // ipnLocalBackend is the subset of ipnlocal.LocalBackend that we use.
 // It is used for testing.
 type ipnLocalBackend interface {
@@ -72,9 +81,13 @@ type ipnLocalBackend interface {
 }
 
 type server struct {
-	lb             ipnLocalBackend
-	logf           logger.Logf
-	tailscaledPath string
+	lb            ipnLocalBackend
+	logf          logger.Logf
+	incubatorPath string
+
+	// execDirect is whether to exec the command directly instead of
+	// using the incubator. This is used for testing.
+	execDirect bool
 
 	pubKeyHTTPClient *http.Client     // or nil for http.DefaultClient
 	timeNow          func() time.Time // or nil for time.Now
@@ -93,22 +106,6 @@ func (srv *server) now() time.Time {
 		return srv.timeNow()
 	}
 	return time.Now()
-}
-
-func init() {
-	ipnlocal.RegisterNewSSHServer(func(logf logger.Logf, lb *ipnlocal.LocalBackend) (ipnlocal.SSHServer, error) {
-		tsd, err := os.Executable()
-		if err != nil {
-			return nil, err
-		}
-		srv := &server{
-			lb:             lb,
-			logf:           logf,
-			tailscaledPath: tsd,
-		}
-
-		return srv, nil
-	})
 }
 
 // attachSessionToConnIfNotShutdown ensures that srv is not shutdown before

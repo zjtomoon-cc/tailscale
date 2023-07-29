@@ -5,5 +5,24 @@
 
 package main
 
-// Force registration of tailssh with LocalBackend.
-import _ "tailscale.com/ssh/tailssh"
+import (
+	"os"
+
+	"tailscale.com/cmd/tailscaled/childproc"
+	"tailscale.com/ipn/ipnlocal"
+	"tailscale.com/ssh/tailssh"
+	"tailscale.com/types/logger"
+)
+
+func init() {
+	// Register tailssh with LocalBackend.
+	ipnlocal.RegisterNewSSHServer(func(logf logger.Logf, lb *ipnlocal.LocalBackend) (ipnlocal.SSHServer, error) {
+		tsd, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		return tailssh.New(lb, logf, tsd), nil
+	})
+
+	childproc.Add("ssh", tailssh.BeIncubator)
+}

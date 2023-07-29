@@ -345,7 +345,8 @@ func TestSSHRecordingCancelsSessionsOnUploadFailure(t *testing.T) {
 	defer recordingServer.Close()
 
 	s := &server{
-		logf: t.Logf,
+		logf:       t.Logf,
+		execDirect: true,
 		lb: &localState{
 			sshEnabled: true,
 			matchingRule: newSSHRule(
@@ -479,7 +480,8 @@ func TestMultipleRecorders(t *testing.T) {
 	defer badRecordingServer200.Close()
 
 	s := &server{
-		logf: t.Logf,
+		logf:       t.Logf,
+		execDirect: true,
 		lb: &localState{
 			sshEnabled: true,
 			matchingRule: newSSHRule(
@@ -571,7 +573,8 @@ func TestSSHRecordingNonInteractive(t *testing.T) {
 	defer recordingServer.Close()
 
 	s := &server{
-		logf: logger.Discard,
+		logf:       logger.Discard,
+		execDirect: true,
 		lb: &localState{
 			sshEnabled: true,
 			matchingRule: newSSHRule(
@@ -743,7 +746,8 @@ func TestSSHAuthFlow(t *testing.T) {
 		},
 	}
 	s := &server{
-		logf: logger.Discard,
+		logf:       logger.Discard,
+		execDirect: true,
 	}
 	defer s.Shutdown()
 	src, dst := must.Get(netip.ParseAddrPort("100.100.100.101:2231")), must.Get(netip.ParseAddrPort("100.100.100.102:22"))
@@ -838,8 +842,9 @@ func TestSSH(t *testing.T) {
 	lb.SetVarRoot(dir)
 
 	srv := &server{
-		lb:   lb,
-		logf: logf,
+		lb:         lb,
+		execDirect: true,
+		logf:       logf,
 	}
 	sc, err := srv.newConn()
 	if err != nil {

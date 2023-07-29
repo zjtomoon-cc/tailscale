@@ -5,7 +5,9 @@
 
 package main // import "tailscale.com/cmd/tailscaled"
 
-import "tailscale.com/logpolicy"
+import (
+	"tailscale.com/logpolicy"
+)
 
 func isWindowsService() bool { return false }
 

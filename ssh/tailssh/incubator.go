@@ -33,16 +33,11 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
-	"tailscale.com/cmd/tailscaled/childproc"
 	"tailscale.com/hostinfo"
 	"tailscale.com/tempfork/gliderlabs/ssh"
 	"tailscale.com/types/logger"
 	"tailscale.com/version/distro"
 )
-
-func init() {
-	childproc.Add("ssh", beIncubator)
-}
 
 var ptyName = func(f *os.File) (string, error) {
 	return "", fmt.Errorf("unimplemented")
@@ -63,9 +58,9 @@ var maybeStartLoginSession = func(logf logger.Logf, ia incubatorArgs) (close fun
 // exec.CommandContext.
 //
 // The returned Cmd.Env is guaranteed to be nil; the caller populates it.
-func (ss *sshSession) newIncubatorCommand() (cmd *exec.Cmd) {
+func (ss *sshSession) newIncubatorCommand() (cmd *exec.Cmd, err error) {
 	defer func() {
-		if cmd.Env != nil {
+		if err == nil && cmd.Env != nil {
 			panic("internal error")
 		}
 	}()
@@ -87,12 +82,14 @@ func (ss *sshSession) newIncubatorCommand() (cmd *exec.Cmd) {
 			args = append(args, "-l") // login shell
 		}
 	default:
-		panic(fmt.Sprintf("unexpected subsystem: %v", ss.Subsystem()))
+		return nil, fmt.Errorf("internal error: unexpected subsystem: %s", ss.Subsystem())
 	}
 
-	if ss.conn.srv.tailscaledPath == "" {
-		// TODO(maisem): this doesn't work with sftp
-		return exec.CommandContext(ss.ctx, name, args...)
+	if ss.conn.srv.incubatorPath == "" {
+		if ss.conn.srv.execDirect {
+			return exec.CommandContext(ss.ctx, name, args...), nil
+		}
+		return nil, errors.New("internal error: incubatorPath not set")
 	}
 	lu := ss.conn.localUser
 	ci := ss.conn.info
@@ -143,7 +140,7 @@ func (ss *sshSession) newIncubatorCommand() (cmd *exec.Cmd) {
 			incubatorArgs = append(incubatorArgs, args...)
 		}
 	}
-	return exec.CommandContext(ss.ctx, ss.conn.srv.tailscaledPath, incubatorArgs...)
+	return exec.CommandContext(ss.ctx, ss.conn.srv.incubatorPath, incubatorArgs...), nil
 }
 
 const debugIncubator = false
@@ -198,7 +195,7 @@ func parseIncubatorArgs(args []string) (a incubatorArgs) {
 	return a
 }
 
-// beIncubator is the entrypoint to the `tailscaled be-child ssh` subcommand.
+// BeIncubator is the entrypoint to the `tailscaled be-child ssh` subcommand.
 // It is responsible for informing the system of a new login session for the user.
 // This is sometimes necessary for mounting home directories and decrypting file
 // systems.
@@ -207,7 +204,7 @@ func parseIncubatorArgs(args []string) (a incubatorArgs) {
 // launched as.  The incubator then registers a new session with the
 // OS, sets its UID and groups to the specified `--uid`, `--gid` and
 // `--groups` and then launches the requested `--cmd`.
-func beIncubator(args []string) error {
+func BeIncubator(args []string) error {
 	// To defend against issues like https://golang.org/issue/1435,
 	// defensively lock our current goroutine's thread to the current
 	// system thread before we start making any UID/GID/group changes.
@@ -430,9 +427,12 @@ func dropPrivileges(logf logger.Logf, wantUid, wantGid int, supplementaryGroups 
 //
 // It sets ss.cmd, stdin, stdout, and stderr.
 func (ss *sshSession) launchProcess() error {
-	ss.cmd = ss.newIncubatorCommand()
+	cmd, err := ss.newIncubatorCommand()
+	if err != nil {
+		return err
+	}
+	ss.cmd = cmd
 
-	cmd := ss.cmd
 	homeDir := ss.conn.localUser.HomeDir
 	if _, err := os.Stat(homeDir); err == nil {
 		cmd.Dir = homeDir
