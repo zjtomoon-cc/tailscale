@@ -651,18 +651,24 @@ func PrefsFromBytes(b []byte) (*Prefs, error) {
 	if len(b) == 0 {
 		return p, nil
 	}
-	persist := &persist.Persist{}
-	err := json.Unmarshal(b, persist)
-	if err == nil && (persist.Provider != "" || persist.LoginName != "") {
-		// old-style relaynode config; import it
-		p.Persist = persist
-	} else {
-		err = json.Unmarshal(b, &p)
-		if err != nil {
-			log.Printf("Prefs parse: %v: %v\n", err, b)
-		}
+
+	err := json.Unmarshal(b, p)
+	if err == nil {
+		return p, nil
 	}
-	return p, err
+	log.Printf("Prefs parse: %v: %v\n", err, b)
+
+	// Also try to unmarshal as the old style `persist.Persist` that was
+	// used in the relaynode config file.
+	persist := &persist.Persist{}
+	if err := json.Unmarshal(b, persist); err == nil && (persist.Provider != "" || persist.DeprecatedLoginName != "") {
+		// old-style relaynode config; import it
+		persist.UserProfile = tailcfg.UserProfile{
+			LoginName: persist.DeprecatedLoginName,
+		}
+		p.Persist = persist
+	}
+	return nil, err
 }
 
 var jsonEscapedZero = []byte(`\u0000`)

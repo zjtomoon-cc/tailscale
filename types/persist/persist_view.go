@@ -68,13 +68,13 @@ func (v PersistView) LegacyFrontendPrivateMachineKey() key.MachinePrivate {
 func (v PersistView) PrivateNodeKey() key.NodePrivate      { return v.ж.PrivateNodeKey }
 func (v PersistView) OldPrivateNodeKey() key.NodePrivate   { return v.ж.OldPrivateNodeKey }
 func (v PersistView) Provider() string                     { return v.ж.Provider }
-func (v PersistView) LoginName() string                    { return v.ж.LoginName }
 func (v PersistView) UserProfile() tailcfg.UserProfileView { return v.ж.UserProfile.View() }
 func (v PersistView) NetworkLockKey() key.NLPrivate        { return v.ж.NetworkLockKey }
 func (v PersistView) NodeID() tailcfg.StableNodeID         { return v.ж.NodeID }
 func (v PersistView) DisallowedTKAStateIDs() views.Slice[string] {
 	return views.SliceOf(v.ж.DisallowedTKAStateIDs)
 }
+func (v PersistView) DeprecatedLoginName() string { return v.ж.DeprecatedLoginName }
 
 // A compilation failure here means this code must be regenerated, with the command at the top of this file.
 var _PersistViewNeedsRegeneration = Persist(struct {
@@ -83,9 +83,9 @@ var _PersistViewNeedsRegeneration = Persist(struct {
 	PrivateNodeKey                  key.NodePrivate
 	OldPrivateNodeKey               key.NodePrivate
 	Provider                        string
-	LoginName                       string
 	UserProfile                     tailcfg.UserProfile
 	NetworkLockKey                  key.NLPrivate
 	NodeID                          tailcfg.StableNodeID
 	DisallowedTKAStateIDs           []string
+	DeprecatedLoginName             string
 }{})

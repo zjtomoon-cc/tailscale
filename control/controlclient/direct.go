@@ -559,7 +559,7 @@ func (c *Direct) doLogin(ctx context.Context, opt loginOpt) (mustRegen bool, new
 		request.NodeKey.ShortString(), opt.URL != "", len(nodeKeySignature) > 0)
 	request.Auth.Oauth2Token = opt.Token
 	request.Auth.Provider = persist.Provider
-	request.Auth.LoginName = persist.LoginName
+	request.Auth.LoginName = persist.UserProfile.LoginName
 	request.Auth.AuthKey = authKey
 	err = signRegisterRequest(&request, c.serverURL, c.serverKey, machinePrivKey.Public())
 	if err != nil {
@@ -644,9 +644,6 @@ func (c *Direct) doLogin(ctx context.Context, opt loginOpt) (mustRegen bool, new
 	}
 	if resp.Login.Provider != "" {
 		persist.Provider = resp.Login.Provider
-	}
-	if resp.Login.LoginName != "" {
-		persist.LoginName = resp.Login.LoginName
 	}
 	persist.UserProfile = tailcfg.UserProfile{
 		ID:            resp.User.ID,

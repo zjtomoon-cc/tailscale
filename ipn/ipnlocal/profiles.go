@@ -208,11 +208,10 @@ func (pm *profileManager) SetPrefs(prefsIn ipn.PrefsView) error {
 		return pm.setPrefsLocked(prefs)
 	}
 	up := newPersist.UserProfile
-	if up.LoginName == "" {
+	if newPersist.DeprecatedLoginName != "" && up.LoginName == "" {
 		// Backwards compatibility with old prefs files.
-		up.LoginName = newPersist.LoginName
-	} else {
-		newPersist.LoginName = up.LoginName
+		up.LoginName = newPersist.DeprecatedLoginName
+		newPersist.DeprecatedLoginName = ""
 	}
 	if up.DisplayName == "" {
 		up.DisplayName = up.LoginName

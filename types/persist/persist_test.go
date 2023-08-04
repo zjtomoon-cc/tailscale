@@ -21,7 +21,7 @@ func fieldsOf(t reflect.Type) (fields []string) {
 }
 
 func TestPersistEqual(t *testing.T) {
-	persistHandles := []string{"LegacyFrontendPrivateMachineKey", "PrivateNodeKey", "OldPrivateNodeKey", "Provider", "LoginName", "UserProfile", "NetworkLockKey", "NodeID", "DisallowedTKAStateIDs"}
+	persistHandles := []string{"LegacyFrontendPrivateMachineKey", "PrivateNodeKey", "OldPrivateNodeKey", "Provider", "UserProfile", "NetworkLockKey", "NodeID", "DisallowedTKAStateIDs", "DeprecatedLoginName"}
 	if have := fieldsOf(reflect.TypeOf(Persist{})); !reflect.DeepEqual(have, persistHandles) {
 		t.Errorf("Persist.Equal check might be out of sync\nfields: %q\nhandled: %q\n",
 			have, persistHandles)
@@ -84,13 +84,13 @@ func TestPersistEqual(t *testing.T) {
 		},
 
 		{
-			&Persist{LoginName: "foo@tailscale.com"},
-			&Persist{LoginName: "bar@tailscale.com"},
+			&Persist{DeprecatedLoginName: "foo@tailscale.com"},
+			&Persist{DeprecatedLoginName: "bar@tailscale.com"},
 			false,
 		},
 		{
-			&Persist{LoginName: "foo@tailscale.com"},
-			&Persist{LoginName: "foo@tailscale.com"},
+			&Persist{DeprecatedLoginName: "foo@tailscale.com"},
+			&Persist{DeprecatedLoginName: "foo@tailscale.com"},
 			true,
 		},
 		{

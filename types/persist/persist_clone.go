@@ -31,9 +31,9 @@ var _PersistCloneNeedsRegeneration = Persist(struct {
 	PrivateNodeKey                  key.NodePrivate
 	OldPrivateNodeKey               key.NodePrivate
 	Provider                        string
-	LoginName                       string
 	UserProfile                     tailcfg.UserProfile
 	NetworkLockKey                  key.NLPrivate
 	NodeID                          tailcfg.StableNodeID
 	DisallowedTKAStateIDs           []string
+	DeprecatedLoginName             string
 }{})
