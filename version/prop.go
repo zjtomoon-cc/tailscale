@@ -130,7 +130,7 @@ func IsUnstableBuild() bool {
 	})
 }
 
-var isDev = lazy.SyncFunc(func() bool {
+var isDev = sync.OnceValue(func() bool {
 	return strings.Contains(Short(), "-dev")
 })
 
