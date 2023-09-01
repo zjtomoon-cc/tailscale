@@ -156,13 +156,10 @@ type localServeClient interface {
 // It also contains the flags, as registered with newServeCommand.
 type serveEnv struct {
 	// flags
-	json             bool   // output JSON (status only for now)
-	daemon           bool   // daemon mode
-	servePath        string // serve path
-	https            string // HTTP port
-	http             string // HTTP port
-	tcp              string // TCP port
-	tlsTerminatedTcp string // a TLS terminated TCP port
+	json      bool   // output JSON (status only for now)
+	daemon    bool   // daemon mode
+	servePath string // serve path
+	servePort string // HTTP port
 
 	lc localServeClient // localClient interface, specific to serve
 

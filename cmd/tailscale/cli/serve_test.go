@@ -953,7 +953,7 @@ func TestSrcTypeFromFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srcType, srcPort, err := srcTypeAndPortFromFlags(tt.env)
+			srcType, srcPort, err := parseFlags(tt.env)
 			if (err != nil) != tt.expectedErr {
 				t.Errorf("Expected error: %v, got: %v", tt.expectedErr, err)
 			}

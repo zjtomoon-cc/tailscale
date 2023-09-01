@@ -72,11 +72,8 @@ func newServeDevCommand(e *serveEnv, subcmd string) *ffcli.Command {
 
 	info := infoMap[subcmd]
 	setCmdFlagSet := e.newFlags("serve-set", func(fs *flag.FlagSet) {
-		fs.StringVar(&e.servePath, "path", "/", "path for the mountpoint")
-		fs.StringVar(&e.https, "https", "", "HTTPS reverse proxy (default 443)")
-		fs.StringVar(&e.http, "http", "", "HTTP reverse proxy")
-		fs.StringVar(&e.tcp, "tcp", "", "Forward raw TCP packets, traffic must be encrypted via TLS.")
-		fs.StringVar(&e.tlsTerminatedTcp, "tls-terminated-tcp", "", " TLS-terminated TCP forwarder")
+		fs.StringVar(&e.servePath, "path", "/", "path to serve the proxy on (default '/')")
+		fs.StringVar(&e.servePort, "port", "", "port to serve the proxy on (default '443' for https and '80' for http)")
 	})
 
 	return &ffcli.Command{
@@ -100,49 +97,69 @@ func newServeDevCommand(e *serveEnv, subcmd string) *ffcli.Command {
 				Name:      "set",
 				ShortHelp: "add a new source to serve",
 				ShortUsage: strings.Join([]string{
-					fmt.Sprintf("%s set [flags] <source> [off]", subcmd),
+					fmt.Sprintf("%s set <scheme> [flags] <source> [off]", subcmd),
 				}, "\n  "),
 				LongHelp: strings.TrimSpace(`
 The 'set' command allows you to add a new source to serve. You can serve various types
 of content, including static files, local web servers, or even simple text.
 
 EXAMPLES
-  - local web server at 127.0.0.1:3000:
-    $ tailscale $subcmd set localhost:3000
+  - expose an HTTPS endpoint proxying HTTP traffic to a local web server
+    $ tailscale $subcmd set https localhost:3000
 
-  - file or a directory of files:
-    $ tailscale $subcmd set /home/alice/blog/index.html
+  - expose an HTTP endpoint proxying HTTP traffic to a static directory
+    $ tailscale $subcmd set http /home/alice/blog
 
-  - simple static text:
-    $ tailscale $subcmd set text:"Hello, world!"
+  - expose an HTTP endpoint proxying TCP traffic to a local TCP server
+    $ tailscale $subcmd set tcp --port=2222 localhost:22
 
-  - advertise over HTTP on port 10000 (serve only):
-    $ tailscale $subcmd set --https=10000 localhost:3000
-
-  - advertise over HTTP on port 80 (serve only):
-    $ tailscale $subcmd set --http=80 localhost:3000
-
-  - forward incoming TCP connections on port 2222 to a local TCP server on port 22 (e.g. to run OpenSSH in parallel with Tailscale SSH):
-    $ tailscale $subcmd set --tcp=2222 localhost:22
-
-  - accept TCP TLS connections (terminated within tailscaled) proxied to a local plaintext server on port 80:
-    $ tailscale $subcmd set --tls-terminated-tcp=443 localhost:80
+  - expose an HTTPS endpoint proxying TCP traffic to a local TCP server
+    $ tailscale $subcmd set tls-terminated-tcp localhost:80
 `),
-				Exec:      e.runServeSet(subcmd == "funnel"),
-				FlagSet:   setCmdFlagSet,
 				UsageFunc: usageFunc,
+				Exec:      func(ctx context.Context, args []string) error { return flag.ErrHelp },
+				Subcommands: []*ffcli.Command{
+					{
+						Name:      "http",
+						ShortHelp: "serve over HTTP",
+						Exec:      e.runServeSet(subcmd == "funnel", "http"),
+						FlagSet:   setCmdFlagSet,
+						UsageFunc: usageFunc,
+					},
+					{
+						Name:      "https",
+						ShortHelp: "serve over HTTPS",
+						Exec:      e.runServeSet(subcmd == "funnel", "https"),
+						FlagSet:   setCmdFlagSet,
+						UsageFunc: usageFunc,
+					},
+					{
+						Name:      "tcp",
+						ShortHelp: "serve TCP connections",
+						Exec:      e.runServeSet(subcmd == "funnel", "tcp"),
+						FlagSet:   setCmdFlagSet,
+						UsageFunc: usageFunc,
+					},
+					{
+						Name:      "tls-terminated-tcp",
+						ShortHelp: "serve TLS terminated TCP connections",
+						Exec:      e.runServeSet(subcmd == "funnel", "tlsTerminatedTcp"),
+						FlagSet:   setCmdFlagSet,
+						UsageFunc: usageFunc,
+					},
+				},
 			},
-			{
-				Name:      "unset",
-				ShortHelp: "remove a source from serve",
-				ShortUsage: strings.Join([]string{
-					fmt.Sprintf("%s unset [flags]", subcmd),
-				}, "\n  "),
-				LongHelp:  "The 'unset' command allows you to remove a source from serve.",
-				Exec:      e.runServeUnset,
-				FlagSet:   setCmdFlagSet,
-				UsageFunc: usageFunc,
-			},
+			// {
+			// 	Name:      "unset",
+			// 	ShortHelp: "remove a source from serve",
+			// 	ShortUsage: strings.Join([]string{
+			// 		fmt.Sprintf("%s unset [flags]", subcmd),
+			// 	}, "\n  "),
+			// 	LongHelp:  "The 'unset' command allows you to remove a source from serve.",
+			// 	Exec:      e.runServeUnset(subcmd == "funnel", "https"),
+			// 	FlagSet:   setCmdFlagSet,
+			// 	UsageFunc: usageFunc,
+			// },
 			{
 				Name:      "status",
 				Exec:      e.runServeStatus,
@@ -225,11 +242,11 @@ func (e *serveEnv) runServeCombined(funnel bool) execFunc {
 // runServeSet is the entry point for "serve set" and "funnel set"
 //
 // Examples:
-//   - tailscale serve set /home/alice/blog/index.html
-//   - tailscale serve set 3000
-//   - tailscale serve set localhost:3000
-//   - tailscale serve set http://localhost:3000
-func (e *serveEnv) runServeSet(funnel bool) execFunc {
+//   - tailscale serve set https /home/alice/blog/index.html
+//   - tailscale serve set https localhost:3000
+//   - tailscale serve set https localhost:3000
+//   - tailscale serve set https http://localhost:3000
+func (e *serveEnv) runServeSet(funnel bool, srvType string) execFunc {
 	return func(ctx context.Context, args []string) error {
 		if len(args) == 0 {
 			return flag.ErrHelp
@@ -240,7 +257,8 @@ func (e *serveEnv) runServeSet(funnel bool) execFunc {
 			return flag.ErrHelp
 		}
 
-		srvType, srvPort, err := srcTypeAndPortFromFlags(e)
+		srvPort, err := parseFlags(e, srvType)
+
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n\n", err)
 			return flag.ErrHelp
@@ -283,20 +301,22 @@ func (e *serveEnv) runServeSet(funnel bool) execFunc {
 //
 // Examples:
 //   - tailscale serve unset
-func (e *serveEnv) runServeUnset(ctx context.Context, args []string) error {
-	srvType, srvPort, err := srcTypeAndPortFromFlags(e)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n\n", err)
-		return flag.ErrHelp
-	}
+func (e *serveEnv) runServeUnset(funnel bool, srvType string) execFunc {
+	return func(ctx context.Context, args []string) error {
+		srvPort, err := parseFlags(e, srvType)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n\n", err)
+			return flag.ErrHelp
+		}
 
-	err = e.unsetServe(ctx, srvType, srvPort, e.servePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n\n", err)
-		return flag.ErrHelp
-	}
+		err = e.unsetServe(ctx, srvType, srvPort, e.servePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n\n", err)
+			return flag.ErrHelp
+		}
 
-	return nil
+		return nil
+	}
 }
 
 func (e *serveEnv) streamServe(ctx context.Context, req ipn.ServeStreamRequest) error {
@@ -358,36 +378,29 @@ func (e *serveEnv) unsetServe(ctx context.Context, srcType string, srcPort uint1
 	}
 }
 
-func srcTypeAndPortFromFlags(e *serveEnv) (srvType string, srvPort uint16, err error) {
-	sourceMap := map[string]string{
-		"http":               e.http,
-		"https":              e.https,
-		"tcp":                e.tcp,
-		"tls-terminated-tcp": e.tlsTerminatedTcp,
-	}
-
-	var srcTypeCount int
-	var srcValue string
-
-	for k, v := range sourceMap {
-		if v != "" {
-			srcTypeCount++
-			srvType = k
-			srcValue = v
+func parseFlags(e *serveEnv, srvType string) (srvPort uint16, err error) {
+	if e.servePort == "" {
+		srvPort, err = getDefaultPort(srvType)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		srvPort, err = parseServePort(e.servePort)
+		if err != nil {
+			return 0, fmt.Errorf("invalid port %q: %w", e.servePort, err)
 		}
 	}
 
-	if srcTypeCount > 1 {
-		return "", 0, fmt.Errorf("cannot serve multiple types for a single mount point")
-	} else if srcTypeCount == 0 {
-		srvType = "https"
-		srcValue = "443"
-	}
+	return srvPort, nil
+}
 
-	srvPort, err = parseServePort(srcValue)
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid port %q: %w", srcValue, err)
+func getDefaultPort(srvType string) (uint16, error) {
+	switch srvType {
+	case "http", "tcp":
+		return 80, nil
+	case "https", "tls-terminated-tcp":
+		return 443, nil
+	default:
+		return 0, fmt.Errorf("invalid type %q", srvType)
 	}
-
-	return srvType, srvPort, nil
 }
