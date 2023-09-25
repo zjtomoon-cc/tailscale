@@ -69,6 +69,10 @@ type tailscaleSTSConfig struct {
 
 	Hostname string
 	Tags     []string // if empty, use defaultTags
+
+	// Routes is a list of CIDRs to pass via --advertise-routes flag
+	// Should only be set if this is config for subnetRouter
+	Routes string
 }
 
 type tailscaleSTSReconciler struct {
@@ -291,10 +295,10 @@ func (a *tailscaleSTSReconciler) newAuthKey(ctx context.Context, tags []string) 
 	return key, nil
 }
 
-//go:embed manifests/proxy.yaml
+//go:embed manifests/deploy/proxy.yaml
 var proxyYaml []byte
 
-//go:embed manifests/userspace-proxy.yaml
+//go:embed manifests/deploy/userspace-proxy.yaml
 var userspaceProxyYaml []byte
 
 func (a *tailscaleSTSReconciler) reconcileSTS(ctx context.Context, logger *zap.SugaredLogger, sts *tailscaleSTSConfig, headlessSvc *corev1.Service, authKeySecret string) (*appsv1.StatefulSet, error) {
@@ -352,6 +356,12 @@ func (a *tailscaleSTSReconciler) reconcileSTS(ctx context.Context, logger *zap.S
 				},
 			},
 		})
+	} else if len(sts.Routes) > 0 {
+		container.Env = append(container.Env, corev1.EnvVar{
+			Name:  "TS_ROUTES",
+			Value: sts.Routes,
+		})
+
 	}
 	ss.ObjectMeta = metav1.ObjectMeta{
 		Name:      headlessSvc.Name,
