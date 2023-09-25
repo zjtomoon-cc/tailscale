@@ -111,6 +111,12 @@ jobs:
           echo "Build/test created untracked files in the repo (file names above)."
           exit 1
         fi
+    - name: check that generated kube files are up-to-date
+      run: |
+        # Refresh generated kube files
+        make kube-generate-all
+        # Check that there are no changes
+        git diff --no-ext-diff --name-only --exit-code || (echo "Generated kube files are out of date, please run make kube-generate-all and commit the update"; exit 1)
 
   windows:
     runs-on: windows-2022

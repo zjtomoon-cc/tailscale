@@ -51,6 +51,14 @@ check: staticcheck vet depaware buildwindows build386 buildlinuxarm buildwasm ##
 staticcheck: ## Run staticcheck.io checks
 	./tool/go run honnef.co/go/tools/cmd/staticcheck -- $$(./tool/go list ./... | grep -v tempfork)
 
+kube-generate-all: kube-generate-deepcopy  kube-generate-crds
+
+kube-generate-deepcopy: ## Refresh generated deepcopy functionality for Tailscale kube API types
+	./scripts/kube-deepcopy.sh
+
+kube-generate-crds: ## Refresh kube CRDs
+	./tool/go run  sigs.k8s.io/controller-tools/cmd/controller-gen 	crd schemapatch:manifests=./cmd/k8s-operator/manifests/deploy/crds output:dir=./cmd/k8s-operator/manifests/deploy/crds paths=./kube/apis/...
+
 spk: ## Build synology package for ${SYNO_ARCH} architecture and ${SYNO_DSM} DSM version
 	./tool/go run ./cmd/dist build synology/dsm${SYNO_DSM}/${SYNO_ARCH}
 
