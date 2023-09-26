@@ -15,6 +15,8 @@ export type NodeData = {
   IsUnraid: boolean
   UnraidToken: string
   IPNVersion: string
+
+  Flag: "" | "login" | "full" // empty when not running in any flagged mode
 }
 
 export type UserProfile = {

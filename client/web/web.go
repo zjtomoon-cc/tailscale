@@ -35,8 +35,8 @@ import (
 type Server struct {
 	lc *tailscale.LocalClient
 
-	devMode   bool
-	loginOnly bool
+	devMode     bool
+	tsDebugMode string
 
 	cgiMode    bool
 	pathPrefix string
@@ -76,6 +76,7 @@ func NewServer(ctx context.Context, opts ServerOpts) (s *Server, cleanup func())
 		lc:         opts.LocalClient,
 		pathPrefix: opts.PathPrefix,
 	}
+	s.tsDebugMode = s.debugMode()
 	s.assetsHandler, cleanup = assetsHandler(opts.DevMode)
 
 	// Create handler for "/api" requests with CSRF protection.
@@ -84,7 +85,7 @@ func NewServer(ctx context.Context, opts ServerOpts) (s *Server, cleanup func())
 	// The client is secured by limiting the interface it listens on,
 	// or by authenticating requests before they reach the web client.
 	csrfProtect := csrf.Protect(s.csrfKey(), csrf.Secure(false))
-	if opts.LoginOnly {
+	if s.tsDebugMode == "login" {
 		// For the login client, we don't serve the full web client API,
 		// only the login endpoints.
 		s.apiHandler = csrfProtect(http.HandlerFunc(s.serveLoginAPI))
@@ -95,6 +96,21 @@ func NewServer(ctx context.Context, opts ServerOpts) (s *Server, cleanup func())
 	}
 
 	return s, cleanup
+}
+
+// debugMode returns the debug mode the web client is being run in.
+// The empty string is returned in the case that this instance is
+// not running in any debug mode.
+func (s *Server) debugMode() string {
+	switch {
+	case !s.devMode:
+		return ""
+	case os.Getenv("TS_DEBUG_LOGIN") == "on":
+		return "login"
+	case os.Getenv("TS_DEBUG_FULL") == "on":
+		return "full"
+	}
+	return ""
 }
 
 // ServeHTTP processes all requests for the Tailscale web client.
@@ -153,7 +169,8 @@ func (s *Server) serveLoginAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case httpm.GET:
-		// TODO(soniaappasamy): implement
+		// TODO(soniaappasamy): we may want a minimal node data response here
+		s.serveGetNodeDataJSON(w, r)
 	case httpm.POST:
 		// TODO(soniaappasamy): implement
 	default:
@@ -206,6 +223,7 @@ type nodeData struct {
 	IsUnraid          bool
 	UnraidToken       string
 	IPNVersion        string
+	Flag              string // empty when not running in any flagged mode
 }
 
 func (s *Server) getNodeData(ctx context.Context) (*nodeData, error) {
@@ -231,6 +249,7 @@ func (s *Server) getNodeData(ctx context.Context) (*nodeData, error) {
 		IsUnraid:    distro.Get() == distro.Unraid,
 		UnraidToken: os.Getenv("UNRAID_CSRF_TOKEN"),
 		IPNVersion:  versionShort,
+		Flag:        s.tsDebugMode,
 	}
 	exitNodeRouteV4 := netip.MustParsePrefix("0.0.0.0/0")
 	exitNodeRouteV6 := netip.MustParsePrefix("::/0")
