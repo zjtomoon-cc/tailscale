@@ -5,10 +5,9 @@ package syspolicy
 
 import (
 	"errors"
-	"sync/atomic"
 )
 
-var handler atomic.Value
+var handler Handler = defaultHandler{}
 
 // Handler reads system policies from OS-specific storage.
 type Handler interface {
@@ -20,3 +19,14 @@ type Handler interface {
 
 // ErrNoSuchKey is returned when the specified key does not have a value set.
 var ErrNoSuchKey = errors.New("no such key")
+
+// defaultHandler is the catch all syspolicy type for anything that isn't windows or apple.
+type defaultHandler struct{}
+
+func (defaultHandler) ReadString(_ string) (string, error) {
+	return "", ErrNoSuchKey
+}
+
+func (defaultHandler) ReadUInt64(_ string) (uint64, error) {
+	return 0, ErrNoSuchKey
+}

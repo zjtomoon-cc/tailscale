@@ -8,7 +8,7 @@ import "tailscale.com/util/winutil"
 type windowsHandler struct{}
 
 func init() {
-	handler.Store(Handler(windowsHandler{}))
+	handler = windowsHandler{}
 }
 
 func (windowsHandler) ReadString(key string) (string, error) {
