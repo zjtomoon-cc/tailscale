@@ -5,9 +5,13 @@ package syspolicy
 
 import (
 	"errors"
+	"sync"
 )
 
-var handler Handler = defaultHandler{}
+var (
+	handlerRegistration sync.Once
+	handler             Handler = defaultHandler{}
+)
 
 // Handler reads system policies from OS-specific storage.
 type Handler interface {
@@ -29,4 +33,17 @@ func (defaultHandler) ReadString(_ string) (string, error) {
 
 func (defaultHandler) ReadUInt64(_ string) (uint64, error) {
 	return 0, ErrNoSuchKey
+}
+
+func markHandlerInUse() {
+	handlerRegistration.Do(func() {})
+}
+
+func RegisterHandler(h Handler) {
+	handlerRegistration.Do(func() {
+		handler = h
+	})
+	if h != handler {
+		panic("handler was already used before registration")
+	}
 }
