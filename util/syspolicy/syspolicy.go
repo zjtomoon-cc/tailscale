@@ -10,6 +10,7 @@ import (
 )
 
 func GetString(key Key, defaultValue string) (string, error) {
+	markHandlerInUse()
 	v, err := handler.ReadString(string(key))
 	if errors.Is(err, ErrNoSuchKey) {
 		return defaultValue, nil
@@ -18,6 +19,7 @@ func GetString(key Key, defaultValue string) (string, error) {
 }
 
 func GetUint64(key Key, defaultValue uint64) (uint64, error) {
+	markHandlerInUse()
 	v, err := handler.ReadUInt64(string(key))
 	if errors.Is(err, ErrNoSuchKey) {
 		return defaultValue, nil

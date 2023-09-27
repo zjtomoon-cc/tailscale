@@ -1,39 +1,77 @@
 // Copyright (c) Tailscale Inc & AUTHORS
 // SPDX-License-Identifier: BSD-3-Clause
 
+// go:build !android
+
 package syspolicy
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 type testHandler struct {
-	t *testing.T
-	wantKey string
-	s   string
-	u64 uint64
-	err error
+	t     *testing.T
+	name  string
+	key   Key
+	value string
+	u64   uint64
+	err   error
 }
 
 func (th *testHandler) ReadString(key string) (string, error) {
-	if key != th.key {
-		t.Errorf("ReadString(%q) want %q", key, th.key)
+	if key != string(th.key) {
+		th.t.Errorf("ReadString(%q) want %q", key, th.key)
 	}
-	return th.s, th.err
+	return th.value, th.err
 }
 
 func (th *testHandler) ReadUInt64(key string) (uint64, error) {
-	if key != th.key {
-		t.Errorf("ReadUint64(%q) want %q", key, th.key)
+	if key != string(th.key) {
+		th.t.Errorf("ReadUint64(%q) want %q", key, th.key)
 	}
 	return th.u64, th.err
 }
 
 func TestGetString(t *testing.T) {
-	var oldHandler = handler
-	t.Cleanup(func() { handler = oldHandler })
-	var th testHandler {
-		t: t
+	tests := []testHandler{
+		{
+			t:     t,
+			name:  "read existing value",
+			key:   AdminConsoleVisibility,
+			value: "hide",
+			err:   nil,
+		},
+		{
+			t:     t,
+			name:  "read non-existing value",
+			key:   EnableServerMode,
+			value: "",
+			err:   ErrNoSuchKey,
+		},
+		{
+			t:     t,
+			name:  "reading value returns other error",
+			key:   NetworkDevicesVisibility,
+			value: "",
+			err:   errors.New("blah"),
+		},
 	}
-	handler = &th
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler = &tt
+			value, err := GetString(tt.key, "")
+			if err != nil && tt.err == ErrNoSuchKey {
+				t.Fatalf("got %v error instead of handling ErrNoSuchKey", err)
+			}
+			if value != tt.value {
+				t.Fatalf("got value %v instead of expected value %v", value, tt.value)
+			}
+			if err != tt.err {
+				t.Fatalf("got error %v instead of expected error %v", err, tt.err)
+			}
+		})
+	}
 }
 
 func TestSelectControlURL(t *testing.T) {

@@ -40,6 +40,7 @@ func markHandlerInUse() {
 	handlerUsed.Store(true)
 }
 
+// RegisterHandler initializes the policy handler and ensures registration will happen once.
 func RegisterHandler(h Handler) {
 	// Technically this assignment is not concurrency safe, but in the
 	// event that there was any risk of a data race, we will panic due to
