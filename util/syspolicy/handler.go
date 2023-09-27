@@ -5,12 +5,12 @@ package syspolicy
 
 import (
 	"errors"
-	"sync"
+	"sync/atomic"
 )
 
 var (
-	handlerRegistration sync.Once
-	handler             Handler = defaultHandler{}
+	handlerUsed atomic.Bool
+	handler     Handler = defaultHandler{}
 )
 
 // Handler reads system policies from OS-specific storage.
@@ -35,15 +35,17 @@ func (defaultHandler) ReadUInt64(_ string) (uint64, error) {
 	return 0, ErrNoSuchKey
 }
 
+// markHandlerInUse is called before handler methods are called.
 func markHandlerInUse() {
-	handlerRegistration.Do(func() {})
+	handlerUsed.Store(true)
 }
 
 func RegisterHandler(h Handler) {
-	handlerRegistration.Do(func() {
-		handler = h
-	})
-	if h != handler {
+	// Technically this assignment is not concurrency safe, but in the
+	// event that there was any risk of a data race, we will panic due to
+	// the CompareAndSwap failing.
+	handler = h
+	if !handlerUsed.CompareAndSwap(false, true) {
 		panic("handler was already used before registration")
 	}
 }

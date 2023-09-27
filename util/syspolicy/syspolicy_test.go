@@ -5,6 +5,37 @@ package syspolicy
 
 import "testing"
 
+type testHandler struct {
+	t *testing.T
+	wantKey string
+	s   string
+	u64 uint64
+	err error
+}
+
+func (th *testHandler) ReadString(key string) (string, error) {
+	if key != th.key {
+		t.Errorf("ReadString(%q) want %q", key, th.key)
+	}
+	return th.s, th.err
+}
+
+func (th *testHandler) ReadUInt64(key string) (uint64, error) {
+	if key != th.key {
+		t.Errorf("ReadUint64(%q) want %q", key, th.key)
+	}
+	return th.u64, th.err
+}
+
+func TestGetString(t *testing.T) {
+	var oldHandler = handler
+	t.Cleanup(func() { handler = oldHandler })
+	var th testHandler {
+		t: t
+	}
+	handler = &th
+}
+
 func TestSelectControlURL(t *testing.T) {
 	tests := []struct {
 		reg, disk, want string

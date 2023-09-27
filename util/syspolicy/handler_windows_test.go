@@ -22,6 +22,10 @@ func TestWindowsHandlerReadValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("opening %s: %v", regPolicyBase, err)
 	}
+	defer key.Close()
+	t.Cleanup(func() {
+		deleteKey(t)
+	})
 	if err := key.SetStringValue(string(AdminConsoleVisibility), "hide"); err != nil {
 		t.Fatalf("error setting string value %v", err)
 	}
@@ -31,7 +35,6 @@ func TestWindowsHandlerReadValues(t *testing.T) {
 	if err := key.SetQWordValue(string(FlushDNSOnSessionUnlock), 0); err != nil {
 		t.Fatalf("error setting q word value %v", err)
 	}
-	defer key.Close()
 	got, err := GetString(AdminConsoleVisibility, "show")
 	if err != nil {
 		t.Fatalf("Error getting string %v", err)
@@ -61,7 +64,6 @@ func TestWindowsHandlerReadValues(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error value does not exist, got no error")
 	}
-	defer deleteKey(t)
 }
 
 func deleteKey(t *testing.T) {
